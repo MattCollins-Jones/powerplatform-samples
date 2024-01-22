@@ -1,0 +1,213 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_office365": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "mcj_sharedoffice365_1231a"
+        },
+        "api": {
+          "name": "shared_office365"
+        }
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "When_an_event_is_added,_updated_or_deleted_(V3)": {
+          "splitOn": "@triggerOutputs()?['body/value']",
+          "metadata": {
+            "operationMetadataId": "7c94f170-e23b-4daf-a43a-45c49c619de3"
+          },
+          "type": "OpenApiConnectionNotification",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_office365",
+              "operationId": "CalendarGetOnChangedItemsV3",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+            },
+            "parameters": {
+              "table": "AQMkADJiMGVkM2M1LWNkNDYtNDkwYS1hZjRkLTJlZjAyYzNmNDU2MgBGAAADde-mbbJ7nU6qMqrChzT_yAcAK49FLSW4RU6KTOgj4ZdAiwAAAgEGAAAAK49FLSW4RU6KTOgj4ZdAiwAAAnosAAAA",
+              "incomingDays": 300,
+              "pastDays": 50
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "conditions": [
+            {
+              "expression": "@not(equals(triggerOutputs()?['body/ActionType'], 'deleted'))"
+            },
+            {
+              "expression": "@not(equals(triggerOutputs()?['body/responseType'], 'tentativelyAccepted'))"
+            },
+            {
+              "expression": "@not(equals(triggerOutputs()?['body/responseType'], 'declined'))"
+            }
+          ],
+          "description": "This filters Deleted events and ones that have already been responded to automatically. Just update the calendar to be the right calendar."
+        }
+      },
+      "actions": {
+        "Terminate": {
+          "runAfter": {
+            "Check_if_lunch_exists_at_this_time": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "04a354d5-3de5-447a-8f7c-77da0e696abc"
+          },
+          "type": "Terminate",
+          "inputs": {
+            "runStatus": "Succeeded"
+          }
+        },
+        "Get_event_(V3)": {
+          "runAfter": {},
+          "metadata": {
+            "operationMetadataId": "cd66ec51-a995-4815-9609-1855bbafbe67"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_office365",
+              "operationId": "V3CalendarGetItem",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+            },
+            "parameters": {
+              "table": "@triggerOutputs()?['body/iCalUId']",
+              "id": "@triggerOutputs()?['body/id']"
+            },
+            "authentication": "@parameters('$authentication')"
+          }
+        },
+        "Get_calendar_view_of_events_(V3)": {
+          "runAfter": {
+            "Get_event_(V3)": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "1998a542-e971-4e36-92d0-570bbcd3ffba"
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_office365",
+              "operationId": "GetEventsCalendarViewV3",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+            },
+            "parameters": {
+              "calendarId": "@triggerOutputs()?['body/iCalUId']",
+              "startDateTimeUtc": "@addMinutes(triggerOutputs()?['body/start'],1)",
+              "endDateTimeUtc": "@addMinutes(triggerOutputs()?['body/end'],-1)",
+              "search": "Lunch"
+            },
+            "authentication": "@parameters('$authentication')"
+          }
+        },
+        "Check_if_lunch_exists_at_this_time": {
+          "actions": {
+            "Check_if_internal_or_external_contact": {
+              "actions": {
+                "Send_Decline_to_Internal_Contact": {
+                  "runAfter": {},
+                  "metadata": {
+                    "operationMetadataId": "0f89f3d9-eccb-4926-8a5f-07a02cf7925f"
+                  },
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connectionName": "shared_office365",
+                      "operationId": "RespondToEvent_V2",
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+                    },
+                    "parameters": {
+                      "event_id": "@triggerOutputs()?['body/id']",
+                      "response": "decline",
+                      "body/Comment": "You have tried to schedule an event during my lunch hours, please reschedule else I will not be in attendance.",
+                      "body/SendResponse": true
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "description": "Change the text in the email as appropriate."
+                }
+              },
+              "runAfter": {},
+              "else": {
+                "actions": {
+                  "Send_Polite_Tentative_Accept": {
+                    "runAfter": {},
+                    "metadata": {
+                      "operationMetadataId": "6127e02c-134c-46c9-97d3-42c1cb1e859b"
+                    },
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                      "host": {
+                        "connectionName": "shared_office365",
+                        "operationId": "RespondToEvent_V2",
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+                      },
+                      "parameters": {
+                        "event_id": "@triggerOutputs()?['body/id']",
+                        "response": "tentativelyAccept",
+                        "body/Comment": "Hello\n\nI'm afriad you have sent me an invite that clashes with my lunch. I hope you can appreciate we all needs breaks. If you could re-arrange that would be great, if not please let me know and I will try and take my break at another time if possible, but I cannot gaurentee my attendance.\n\nKind Regards",
+                        "body/SendResponse": true
+                      },
+                      "authentication": "@parameters('$authentication')"
+                    },
+                    "description": "Change the text in the email as appropriate."
+                  }
+                }
+              },
+              "expression": {
+                "and": [
+                  {
+                    "contains": [
+                      "@triggerOutputs()?['body/organizer']",
+                      "YouCompanyEmail.com"
+                    ]
+                  }
+                ]
+              },
+              "metadata": {
+                "operationMetadataId": "ee2cb2a4-0178-41a7-b2fb-50f60601a91b"
+              },
+              "type": "If",
+              "description": "Update the email here to be your internal company domain. Or a specific person if you like."
+            }
+          },
+          "runAfter": {
+            "Get_calendar_view_of_events_(V3)": [
+              "Succeeded"
+            ]
+          },
+          "expression": {
+            "equals": [
+              "@length(outputs('Get_calendar_view_of_events_(V3)')?['body/value'])",
+              1
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "ff894bfb-eb9f-4b2e-ad59-bc0df570fe67"
+          },
+          "type": "If"
+        }
+      },
+      "outputs": {}
+    },
+    "templateName": ""
+  },
+  "schemaVersion": "1.0.0.0"
+}
