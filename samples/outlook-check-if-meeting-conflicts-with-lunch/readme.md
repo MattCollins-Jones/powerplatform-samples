@@ -47,6 +47,8 @@ Dataverse for the solution Import.
 * [Download](./solution/OutlookCheckIfConflictWithLunch.zip) the `.zip` from the `solution` folder
 * Within **Power Automate Studio**, import the solution `.zip` file using **Solutions** > **Import Solution** and select the `.zip` file you just packed.
 * Open the flow and update the trigger to point to a calendar you want to run this flow from. All subsequent steps will use the triggers calendar.
+![Collapsed Flow](assets/UpdateCalendarpng.png)
+
 
 ## Using the Source Code
 
